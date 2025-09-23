@@ -76,29 +76,7 @@ python meeting_agent.py transcript.txt --output "my_meeting_notes.pdf"
 
 ## Example Output
 
-The agent generates both PDF and text files with structured content like:
-
-```
-Project Kickoff
-Wireless Blind Spot Identification System
-Gregg Martin
-Sep 18, 2025
-404-947-8746 | 440 Interstate North Parkway | Atlanta | GA 30339
-CONFIDENTIAL AND PROPRIETARY
-Attendees: Gregg, Joe, Jon, Glenn, Corey, Brendan, Maddy, Seth
-
-Client Vision
-● Gregg's idea originated from his parents' experience: their new car lacked blind spot monitoring, despite having it in an earlier model.
-● Identified gap: aftermarket solutions exist but are all hardwired, cumbersome, and expensive.
-● Vision: Wireless, easy-to-install blind spot detection system that can be installed in ~5 minutes.
-● Key differentiator: true wireless solution (currently unavailable on the market).
-
-Target Market & Use Case
-● Drivers without OEM blind spot systems who want safety features without replacing vehicles.
-● Parents of teen drivers — safety reassurance for older cars passed down.
-● Leased car owners — product must be easy to install/uninstall without permanent modifications.
-...
-```
+The agent generates both PDF and text files with structured content organized into professional sections including project details, client vision, target market analysis, technical considerations, and actionable next steps.
 
 ## How It Works
 
