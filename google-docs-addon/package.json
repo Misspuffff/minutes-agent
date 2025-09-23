@@ -22,7 +22,7 @@
   "author": "Your Name",
   "license": "MIT",
   "devDependencies": {
-    "@google/clasp": "^2.4.2"
+    "@google/clasp": "^2.5.0"
   },
   "repository": {
     "type": "git",
