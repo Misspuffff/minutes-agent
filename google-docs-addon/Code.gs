@@ -65,11 +65,14 @@ function processTranscript(transcriptData) {
     // Check if API key is configured first
     const apiKey = getGeminiApiKey();
     
+    // Auto-parse meeting data from transcript if not provided
+    const parsedData = autoParseMeetingData(transcriptData.transcript, transcriptData);
+    
     // Extract structured content using Gemini
     const structuredData = callGeminiAPI(transcriptData.transcript);
     
     // Add structured notes to current document
-    addMeetingNotesToDocument(structuredData, transcriptData);
+    addMeetingNotesToDocument(structuredData, parsedData);
     
     return {
       success: true,
@@ -94,6 +97,83 @@ function processTranscript(transcriptData) {
       success: false,
       error: error.toString(),
       message: errorMessage
+    };
+  }
+}
+
+/**
+ * Auto-parses meeting data from transcript using AI
+ */
+function autoParseMeetingData(transcript, providedData) {
+  try {
+    const apiKey = getGeminiApiKey();
+    
+    const prompt = `Analyze this meeting transcript and extract the following information. If information is not available, use reasonable defaults or leave blank.
+
+TRANSCRIPT:
+${transcript}
+
+Please extract and return ONLY a JSON object with these fields:
+{
+  "projectTitle": "extracted project title or 'Project Meeting'",
+  "clientName": "extracted client/company name or 'Client'",
+  "meetingDate": "extracted date or current date",
+  "attendees": "extracted attendee names or 'Meeting attendees'",
+  "contactInfo": "extracted contact information or 'Contact information'"
+}
+
+Return ONLY the JSON object, no other text.`;
+
+    const payload = {
+      contents: [{
+        parts: [{
+          text: prompt
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 500
+      }
+    };
+
+    const options = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      payload: JSON.stringify(payload)
+    };
+
+    const url = `${CONFIG.GEMINI_API_URL}?key=${apiKey}`;
+    const response = UrlFetchApp.fetch(url, options);
+    const responseData = JSON.parse(response.getContentText());
+
+    if (responseData.error) {
+      throw new Error(`Gemini API Error: ${responseData.error.message}`);
+    }
+
+    const extractedText = responseData.candidates[0].content.parts[0].text;
+    const parsedData = JSON.parse(extractedText);
+
+    // Merge with provided data (provided data takes precedence)
+    return {
+      projectTitle: providedData.projectTitle || parsedData.projectTitle || 'Project Meeting',
+      clientName: providedData.clientName || parsedData.clientName || 'Client',
+      meetingDate: providedData.meetingDate || parsedData.meetingDate || new Date().toLocaleDateString(),
+      attendees: providedData.attendees || parsedData.attendees || 'Meeting attendees',
+      contactInfo: providedData.contactInfo || parsedData.contactInfo || 'Contact information'
+    };
+
+  } catch (error) {
+    console.error('Error auto-parsing meeting data:', error);
+    
+    // Fallback to provided data or defaults
+    return {
+      projectTitle: providedData.projectTitle || 'Project Meeting',
+      clientName: providedData.clientName || 'Client',
+      meetingDate: providedData.meetingDate || new Date().toLocaleDateString(),
+      attendees: providedData.attendees || 'Meeting attendees',
+      contactInfo: providedData.contactInfo || 'Contact information'
     };
   }
 }
