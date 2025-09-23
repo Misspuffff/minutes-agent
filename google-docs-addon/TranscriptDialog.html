@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f8f9fa;
+    }
+    
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .header h1 {
+      color: #1a73e8;
+      margin: 0;
+      font-size: 24px;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #3c4043;
+    }
+    
+    input, textarea, select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    
+    textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+    
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .btn-primary {
+      background-color: #1a73e8;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: #1557b0;
+    }
+    
+    .btn-secondary {
+      background-color: #f1f3f4;
+      color: #3c4043;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #e8eaed;
+    }
+    
+    .loading {
+      display: none;
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #1a73e8;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .error {
+      background-color: #fce8e6;
+      color: #d93025;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      display: none;
+    }
+    
+    .success {
+      background-color: #e6f4ea;
+      color: #137333;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      display: none;
+    }
+    
+    .get-selected-btn {
+      background-color: #34a853;
+      color: white;
+      margin-bottom: 10px;
+    }
+    
+    .get-selected-btn:hover {
+      background-color: #2d8f47;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📝 Meeting Notes Agent</h1>
+      <p>Convert meeting transcripts into structured meeting notes and add them to this document</p>
+    </div>
+    
+    <div class="error" id="error-message"></div>
+    <div class="success" id="success-message"></div>
+    
+    <form id="transcript-form">
+      <div class="form-group">
+        <button type="button" class="get-selected-btn" onclick="getSelectedText()">
+          📋 Get Selected Text from Document
+        </button>
+      </div>
+      
+      <div class="form-group">
+        <label for="transcript">Meeting Transcript:</label>
+        <textarea id="transcript" name="transcript" placeholder="Paste your meeting transcript here..." required></textarea>
+      </div>
+      
+      <div class="form-group">
+        <label for="project-title">Project Title:</label>
+        <input type="text" id="project-title" name="projectTitle" placeholder="e.g., Mobile App Development">
+      </div>
+      
+      <div class="form-group">
+        <label for="client-name">Client Name:</label>
+        <input type="text" id="client-name" name="clientName" placeholder="e.g., TechCorp Inc.">
+      </div>
+      
+      <div class="form-group">
+        <label for="meeting-date">Meeting Date:</label>
+        <input type="text" id="meeting-date" name="meetingDate" placeholder="e.g., Jan 15, 2025">
+      </div>
+      
+      <div class="form-group">
+        <label for="attendees">Attendees:</label>
+        <input type="text" id="attendees" name="attendees" placeholder="e.g., John Smith, Sarah Johnson, Mike Chen">
+      </div>
+      
+      <div class="form-group">
+        <label for="contact-info">Contact Information:</label>
+        <input type="text" id="contact-info" name="contactInfo" placeholder="e.g., 555-123-4567 | 123 Main St | City | State 12345">
+      </div>
+      
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Processing transcript with AI...</p>
+      </div>
+      
+      <div class="button-group">
+        <button type="button" class="btn-secondary" onclick="google.script.host.close()">
+          Cancel
+        </button>
+        <button type="submit" class="btn-primary">
+          🚀 Generate Meeting Notes
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // Set default date
+    document.getElementById('meeting-date').value = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    
+    // Handle form submission
+    document.getElementById('transcript-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const formData = {
+        transcript: document.getElementById('transcript').value,
+        projectTitle: document.getElementById('project-title').value,
+        clientName: document.getElementById('client-name').value,
+        meetingDate: document.getElementById('meeting-date').value,
+        attendees: document.getElementById('attendees').value,
+        contactInfo: document.getElementById('contact-info').value
+      };
+      
+      if (!formData.transcript.trim()) {
+        showError('Please enter a meeting transcript.');
+        return;
+      }
+      
+      showLoading();
+      hideMessages();
+      
+      google.script.run
+        .withSuccessHandler(onSuccess)
+        .withFailureHandler(onError)
+        .processTranscript(formData);
+    });
+    
+    function getSelectedText() {
+      google.script.run
+        .withSuccessHandler(function(text) {
+          if (text) {
+            document.getElementById('transcript').value = text;
+            showSuccess('Selected text loaded successfully!');
+          } else {
+            showError('No text selected. Please select some text in the document first.');
+          }
+        })
+        .withFailureHandler(function(error) {
+          showError('Failed to get selected text: ' + error);
+        })
+        .getSelectedText();
+    }
+    
+    function onSuccess(result) {
+      hideLoading();
+      
+      if (result.success) {
+        showSuccess(result.message);
+        
+        // Close dialog after successful processing
+        setTimeout(function() {
+          google.script.host.close();
+        }, 2000);
+      } else {
+        showError(result.message || 'Failed to process transcript.');
+      }
+    }
+    
+    function onError(error) {
+      hideLoading();
+      showError('An error occurred: ' + error);
+    }
+    
+    function showLoading() {
+      document.getElementById('loading').style.display = 'block';
+      document.querySelector('button[type="submit"]').disabled = true;
+    }
+    
+    function hideLoading() {
+      document.getElementById('loading').style.display = 'none';
+      document.querySelector('button[type="submit"]').disabled = false;
+    }
+    
+    function showError(message) {
+      const errorDiv = document.getElementById('error-message');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
+    
+    function showSuccess(message) {
+      const successDiv = document.getElementById('success-message');
+      successDiv.textContent = message;
+      successDiv.style.display = 'block';
+    }
+    
+    function hideMessages() {
+      document.getElementById('error-message').style.display = 'none';
+      document.getElementById('success-message').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

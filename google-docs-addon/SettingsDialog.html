@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f8f9fa;
+    }
+    
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .header h1 {
+      color: #1a73e8;
+      margin: 0;
+      font-size: 20px;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #3c4043;
+    }
+    
+    input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+    
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .btn-primary {
+      background-color: #1a73e8;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: #1557b0;
+    }
+    
+    .btn-secondary {
+      background-color: #f1f3f4;
+      color: #3c4043;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #e8eaed;
+    }
+    
+    .info-box {
+      background-color: #e8f0fe;
+      border: 1px solid #1a73e8;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    
+    .info-box h3 {
+      margin: 0 0 10px 0;
+      color: #1a73e8;
+      font-size: 14px;
+    }
+    
+    .info-box p {
+      margin: 0;
+      font-size: 13px;
+      color: #3c4043;
+    }
+    
+    .info-box a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+    
+    .info-box a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚙️ Settings</h1>
+    </div>
+    
+    <div class="info-box">
+      <h3>🔑 API Key Required</h3>
+      <p>This add-on uses Google's Gemini AI to process meeting transcripts. You need a Gemini API key to use this feature.</p>
+      <p><strong>Get your API key:</strong> <a href="https://aistudio.google.com/app/apikey" target="_blank">https://aistudio.google.com/app/apikey</a></p>
+    </div>
+    
+    <div class="error" id="error-message" style="display: none; background-color: #fce8e6; color: #d93025; padding: 10px; border-radius: 4px; margin: 10px 0;"></div>
+    <div class="success" id="success-message" style="display: none; background-color: #e6f4ea; color: #137333; padding: 10px; border-radius: 4px; margin: 10px 0;"></div>
+    
+    <form id="settings-form">
+      <div class="form-group">
+        <label for="api-key">Gemini API Key:</label>
+        <input type="password" id="api-key" name="apiKey" placeholder="Enter your Gemini API key">
+      </div>
+      
+      <div class="button-group" style="justify-content: space-between;">
+        <button type="button" class="btn-secondary" onclick="testApiKey()">
+          🧪 Test API Key
+        </button>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" class="btn-secondary" onclick="google.script.host.close()">
+            Cancel
+          </button>
+          <button type="submit" class="btn-primary">
+            💾 Save Settings
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // Handle form submission
+    document.getElementById('settings-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const apiKey = document.getElementById('api-key').value.trim();
+      
+      if (!apiKey) {
+        showError('Please enter your Gemini API key.');
+        return;
+      }
+      
+      // Save the API key to script properties
+      google.script.run
+        .withSuccessHandler(onSaveSuccess)
+        .withFailureHandler(onSaveError)
+        .setGeminiApiKey(apiKey);
+    });
+    
+    function onSaveSuccess(result) {
+      showSuccess(result.message);
+      setTimeout(function() {
+        google.script.host.close();
+      }, 2000);
+    }
+    
+    function onSaveError(error) {
+      showError('Failed to save API key: ' + error);
+    }
+    
+    function showError(message) {
+      const errorDiv = document.getElementById('error-message');
+      const successDiv = document.getElementById('success-message');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      successDiv.style.display = 'none';
+    }
+    
+    function showSuccess(message) {
+      const errorDiv = document.getElementById('error-message');
+      const successDiv = document.getElementById('success-message');
+      successDiv.textContent = message;
+      successDiv.style.display = 'block';
+      errorDiv.style.display = 'none';
+    }
+    
+    function testApiKey() {
+      const apiKey = document.getElementById('api-key').value.trim();
+      
+      if (!apiKey) {
+        showError('Please enter your API key first before testing.');
+        return;
+      }
+      
+      // Temporarily save the API key for testing
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            showSuccess(result.message);
+          } else {
+            showError(result.message);
+          }
+        })
+        .withFailureHandler(function(error) {
+          showError('Test failed: ' + error);
+        })
+        .setGeminiApiKey(apiKey);
+      
+      // Now test the API key
+      setTimeout(function() {
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result.success) {
+              showSuccess(result.message);
+            } else {
+              showError(result.message);
+            }
+          })
+          .withFailureHandler(function(error) {
+            showError('Test failed: ' + error);
+          })
+          .testApiKey();
+      }, 1000);
+    }
+    
+    // Load current API key status on page load
+    window.onload = function() {
+      // Check if API key is already configured
+      google.script.run
+        .withSuccessHandler(function(hasKey) {
+          if (hasKey) {
+            document.getElementById('api-key').placeholder = 'API key is already configured (enter new key to update)';
+          }
+        })
+        .withFailureHandler(function() {
+          // API key not configured, which is fine
+        })
+        .checkApiKeyStatus();
+    };
+  </script>
+</body>
+</html>

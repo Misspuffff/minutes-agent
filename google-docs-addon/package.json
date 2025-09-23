@@ -1,0 +1,35 @@
+{
+  "name": "meeting-notes-agent",
+  "version": "1.0.0",
+  "description": "Google Docs add-on that converts meeting transcripts into structured meeting notes",
+  "main": "Code.gs",
+  "scripts": {
+    "deploy": "./deploy.sh",
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "status": "clasp status",
+    "login": "clasp login",
+    "logout": "clasp logout"
+  },
+  "keywords": [
+    "google-apps-script",
+    "google-docs",
+    "meeting-notes",
+    "transcript",
+    "ai",
+    "gemini"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/meeting-notes-agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/meeting-notes-agent/issues"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/meeting-notes-agent#readme"
+}
