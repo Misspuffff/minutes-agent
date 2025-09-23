@@ -28,7 +28,7 @@ fi
 if [ -z "$GEMINI_API_KEY" ]; then
     echo "⚠️  GEMINI_API_KEY environment variable not set"
     echo "Please set your Gemini API key:"
-    echo "export GEMINI_API_KEY='AIzaSyApexRCbtIGSNu1xtc-8fXuFY3qFmwDhIs'"
+    echo "export GEMINI_API_KEY='your_api_key_here'"
     echo ""
     echo "You can get an API key from: https://makersuite.google.com/app/apikey"
 else
