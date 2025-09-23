@@ -222,6 +222,14 @@ function testApiKey() {
   try {
     const apiKey = getGeminiApiKey();
     
+    // First, validate the API key format
+    if (!apiKey || !apiKey.startsWith('AIza')) {
+      return {
+        success: false,
+        message: 'Invalid API key format. API key should start with "AIza"'
+      };
+    }
+    
     // Make a simple test request
     const payload = {
       contents: [{
@@ -247,9 +255,20 @@ function testApiKey() {
     const responseData = JSON.parse(response.getContentText());
     
     if (responseData.error) {
+      let errorMessage = responseData.error.message;
+      
+      // Provide more helpful error messages
+      if (errorMessage.includes('API key not valid')) {
+        errorMessage = 'API key is invalid. Please check your API key in Apps Script project settings.';
+      } else if (errorMessage.includes('quota')) {
+        errorMessage = 'API quota exceeded. Please check your Google Cloud Console billing.';
+      } else if (errorMessage.includes('permission')) {
+        errorMessage = 'API key lacks required permissions. Please enable Generative AI API.';
+      }
+      
       return {
         success: false,
-        message: `API key test failed: ${responseData.error.message}`
+        message: `API key test failed: ${errorMessage}`
       };
     }
     
@@ -259,9 +278,22 @@ function testApiKey() {
     };
     
   } catch (error) {
+    let errorMessage = error.toString();
+    
+    // Provide more helpful error messages
+    if (errorMessage.includes('API key not configured')) {
+      errorMessage = 'API key not found. Please add GEMINI_API_KEY to Apps Script project properties.';
+    } else if (errorMessage.includes('401')) {
+      errorMessage = 'Unauthorized. Please check your API key.';
+    } else if (errorMessage.includes('403')) {
+      errorMessage = 'Forbidden. Please check API key permissions.';
+    } else if (errorMessage.includes('429')) {
+      errorMessage = 'Rate limit exceeded. Please try again later.';
+    }
+    
     return {
       success: false,
-      message: `API key test failed: ${error.toString()}`
+      message: `API key test failed: ${errorMessage}`
     };
   }
 }
@@ -397,8 +429,9 @@ function parseGeminiResponse(content) {
  * Adds structured meeting notes to the current document
  */
 function addMeetingNotesToDocument(structuredData, transcriptData) {
-  const doc = DocumentApp.getActiveDocument();
-  const body = doc.getBody();
+  try {
+    const doc = DocumentApp.getActiveDocument();
+    const body = doc.getBody();
   
   // Add a page break to separate from existing content
   body.appendPageBreak();
@@ -447,30 +480,40 @@ function addMeetingNotesToDocument(structuredData, transcriptData) {
       body.appendParagraph(''); // Add spacing between sections
     }
   }
+  } catch (error) {
+    console.error('Error adding meeting notes to document:', error);
+    throw new Error('Failed to add meeting notes to document. Please try again.');
+  }
 }
 
 /**
  * Gets the selected text from the current document
  */
 function getSelectedText() {
-  const doc = DocumentApp.getActiveDocument();
-  const selection = doc.getSelection();
-  
-  if (!selection) {
+  try {
+    const doc = DocumentApp.getActiveDocument();
+    const selection = doc.getSelection();
+    
+    if (!selection) {
+      return '';
+    }
+    
+    const elements = selection.getRangeElements();
+    let selectedText = '';
+    
+    for (const element of elements) {
+      if (element.getElement().getType() === DocumentApp.ElementType.TEXT) {
+        const text = element.getElement().asText();
+        const start = element.getStartOffset();
+        const end = element.getEndOffsetInclusive();
+        selectedText += text.getText().substring(start, end + 1);
+      }
+    }
+    
+    return selectedText.trim();
+  } catch (error) {
+    console.error('Error getting selected text:', error);
+    // Fallback: return empty string if selection fails
     return '';
   }
-  
-  const elements = selection.getRangeElements();
-  let selectedText = '';
-  
-  for (const element of elements) {
-    if (element.getElement().getType() === DocumentApp.ElementType.TEXT) {
-      const text = element.getElement().asText();
-      const start = element.getStartOffset();
-      const end = element.getEndOffsetInclusive();
-      selectedText += text.getText().substring(start, end + 1);
-    }
-  }
-  
-  return selectedText.trim();
 }
