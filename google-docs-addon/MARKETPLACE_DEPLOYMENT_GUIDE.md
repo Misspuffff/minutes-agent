@@ -74,7 +74,7 @@ Your `appsscript.json` is now properly configured with:
 
 1. In Apps Script Editor, click **Deploy** → **New deployment**
 2. Choose **Type: Add-on**
-3. Fill in description: "Meeting Notes Agent - Convert transcripts to structured meeting notes"
+3. Fill in description: "Meeting Notes Agent - Convert transcripts to structured meeting notes using ChatGPT"
 4. Click **Create Version**
 5. Click **Deploy**
 
@@ -142,6 +142,65 @@ Your `appsscript.json` is now properly configured with:
 1. Users can find and install from Google Workspace Marketplace
 2. Search for "Meeting Notes Agent" in the Marketplace
 3. Click "Install" to add to their Google account
+
+## Troubleshooting Common Issues
+
+### "URL has not been whitelisted" Error
+
+If you encounter this error when trying to process transcripts:
+
+1. **Check Manifest Configuration**:
+   - Open your Apps Script project
+   - Go to **Project Settings** (gear icon)
+   - Verify `appsscript.json` contains:
+     ```json
+     "urlFetchWhitelist": [
+       "https://api.openai.com/v1/chat/completions",
+       "https://api.openai.com/*"
+     ]
+     ```
+
+2. **Redeploy the Add-on**:
+   - After updating `appsscript.json`, you MUST redeploy
+   - Go to **Deploy** → **New Deployment**
+   - Choose **Web app** or **Add-on** type
+   - Update version number
+   - Deploy
+
+3. **Test URL Fetch Permissions**:
+   - In Apps Script editor, run the `debugUrlFetch()` function
+   - This will test if URL fetch permissions are working
+   - Check the execution log for results
+
+4. **Clear Cache**:
+   - Sometimes Apps Script caches old configurations
+   - Try opening the add-on in an incognito/private browser window
+   - Or wait 5-10 minutes for cache to clear
+
+### API Key Issues
+
+1. **Test API Key**:
+   - Run `testApiKey()` function in Apps Script editor
+   - Check execution log for detailed error messages
+
+2. **Verify API Key Format**:
+   - Must start with `sk-`
+   - Should be 51+ characters long
+   - No spaces or extra characters
+
+3. **Check API Key Permissions**:
+   - Ensure your OpenAI API key has sufficient credits
+   - Verify it's not expired or revoked
+
+### Document Access Issues
+
+1. **Ensure Document is Open**:
+   - The add-on requires an active Google Docs document
+   - Open a document before using the add-on
+
+2. **Check Permissions**:
+   - Make sure you've granted necessary permissions
+   - Look for permission prompts when first using the add-on
 
 ## Step 4: Users Access the Add-on
 

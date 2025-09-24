@@ -76,7 +76,8 @@ function doGet() {
 
 // Global configuration
 const CONFIG = {
-  CHATGPT_API_URL: 'https://api.openai.com/v1/chat/completions',
+  GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+  CHATGPT_API_URL: 'https://api.openai.com/v1/chat/completions', // Keep as fallback
   TEMPLATE_SECTIONS: [
     'Project Kickoff',
     'Client Vision',
@@ -92,15 +93,8 @@ const CONFIG = {
 };
 
 /**
- * Creates the add-on menu in Google Docs
+ * Creates the add-on menu in Google Docs (duplicate function removed)
  */
-function onOpen() {
-  const ui = DocumentApp.getUi();
-  ui.createMenu('Meeting Notes Agent')
-    .addItem('Add Meeting Notes to Document', 'showTranscriptDialog')
-    .addItem('Settings', 'showSettingsDialog')
-    .addToUi();
-}
 
 /**
  * Shows the transcript conversion dialog
@@ -136,17 +130,46 @@ function processTranscript(transcriptData) {
     console.log('Starting transcript processing...');
     
     // Check if API key is configured first
-    const apiKey = getChatGPTApiKey();
-    console.log('API key retrieved:', apiKey.substring(0, 10) + '...');
+    const apiKeyStatus = checkApiKeyStatus();
+    console.log('API key status:', apiKeyStatus);
+    
+    if (!apiKeyStatus.hasAny) {
+      throw new Error('No API key configured. Please go to Settings to add your Gemini API key.');
+    }
     
     // Auto-parse meeting data from transcript if not provided
     console.log('Starting auto-parsing...');
     const parsedData = autoParseMeetingData(transcriptData.transcript, transcriptData);
     console.log('Auto-parsing completed:', parsedData);
     
-    // Extract structured content using ChatGPT
+    // Extract structured content using Gemini (with ChatGPT fallback)
     console.log('Starting content extraction...');
-    const structuredData = callChatGPTAPI(transcriptData.transcript);
+    let structuredData;
+    try {
+      if (apiKeyStatus.gemini) {
+        console.log('Using Gemini API...');
+        structuredData = callGeminiAPI(transcriptData.transcript);
+      } else {
+        console.log('Using ChatGPT API (fallback)...');
+        structuredData = callChatGPTAPI(transcriptData.transcript);
+      }
+    } catch (error) {
+      console.log('Primary API failed, trying fallback...');
+      if (apiKeyStatus.gemini && apiKeyStatus.chatgpt) {
+        // Try the other API
+        try {
+          if (error.toString().includes('Gemini')) {
+            structuredData = callChatGPTAPI(transcriptData.transcript);
+          } else {
+            structuredData = callGeminiAPI(transcriptData.transcript);
+          }
+        } catch (fallbackError) {
+          throw error; // Throw original error if both fail
+        }
+      } else {
+        throw error; // No fallback available
+      }
+    }
     console.log('Content extraction completed:', Object.keys(structuredData));
     
     // Add structured notes to current document
@@ -170,6 +193,8 @@ function processTranscript(transcriptData) {
       errorMessage += 'Please go to Settings to configure your ChatGPT API key first.';
     } else if (error.toString().includes('ChatGPT API Error')) {
       errorMessage += 'There was an issue with the ChatGPT API. Please check your API key and try again.';
+    } else if (error.toString().includes('not been whitelisted')) {
+      errorMessage += 'URL not whitelisted. Please redeploy the add-on after updating the manifest configuration.';
     } else if (error.toString().includes('getActiveDocument')) {
       errorMessage += 'Document access error. Please make sure you have a Google Docs document open.';
     } else if (error.toString().includes('JSON')) {
@@ -191,9 +216,20 @@ function processTranscript(transcriptData) {
  */
 function autoParseMeetingData(transcript, providedData) {
   try {
-    const apiKey = getChatGPTApiKey();
+    const apiKeyStatus = checkApiKeyStatus();
     
-    console.log('Starting auto-parsing with ChatGPT API key:', apiKey.substring(0, 10) + '...');
+    if (!apiKeyStatus.hasAny) {
+      console.log('No API key available for auto-parsing, using provided data only');
+      return {
+        projectTitle: providedData.projectTitle || 'Project Meeting',
+        clientName: providedData.clientName || 'Client',
+        meetingDate: providedData.meetingDate || new Date().toLocaleDateString(),
+        attendees: providedData.attendees || 'Meeting attendees',
+        contactInfo: providedData.contactInfo || 'Contact information'
+      };
+    }
+    
+    console.log('Starting auto-parsing with API:', apiKeyStatus.gemini ? 'Gemini' : 'ChatGPT');
     
     const prompt = 'Analyze this meeting transcript and extract the following information. If information is not available, use reasonable defaults or leave blank.\n\n' +
       'TRANSCRIPT:\n' +
@@ -208,39 +244,105 @@ function autoParseMeetingData(transcript, providedData) {
       '}\n\n' +
       'Return ONLY the JSON object, no other text.';
 
-    const payload = {
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: "You are a professional meeting analyst. Extract structured information from meeting transcripts and return only valid JSON."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 500
-    };
-
-    const options = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      payload: JSON.stringify(payload)
-    };
-
-    console.log('Making ChatGPT API call...');
+    let responseData;
     
-    const response = UrlFetchApp.fetch(CONFIG.CHATGPT_API_URL, options);
-    const responseData = JSON.parse(response.getContentText());
+    if (apiKeyStatus.gemini) {
+      // Use Gemini API
+      const apiKey = getGeminiApiKey();
+      const payload = {
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 500,
+          topP: 0.8,
+          topK: 10
+        }
+      };
+      
+      const url = `${CONFIG.GEMINI_API_URL}?key=${apiKey}`;
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      };
+
+      console.log('Making Gemini API call...');
+      const response = UrlFetchApp.fetch(url, options);
+      responseData = JSON.parse(response.getContentText());
+      
+      if (response.getResponseCode() === 200 && responseData.candidates) {
+        responseData.choices = [{
+          message: {
+            content: responseData.candidates[0].content.parts[0].text
+          }
+        }];
+      }
+    } else {
+      // Use ChatGPT API (fallback)
+      const apiKey = getChatGPTApiKey();
+      const payload = {
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: "You are a professional meeting analyst. Extract structured information from meeting transcripts and return only valid JSON."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 500
+      };
+
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      };
+
+      console.log('Making ChatGPT API call...');
+      const response = UrlFetchApp.fetch(CONFIG.CHATGPT_API_URL, options);
+      responseData = JSON.parse(response.getContentText());
+    }
+
+    // Check for HTTP errors
+    if (response.getResponseCode() !== 200) {
+      if (response.getResponseCode() === 429) {
+        console.error('Rate limit exceeded, skipping auto-parse');
+        throw new Error('Rate limit exceeded. Skipping auto-parse, using provided data only.');
+      } else if (response.getResponseCode() === 401) {
+        console.error('API key invalid');
+        throw new Error('API key invalid. Skipping auto-parse, using provided data only.');
+      } else {
+        console.error('API error:', response.getResponseCode());
+        throw new Error(`API error ${response.getResponseCode()}. Skipping auto-parse, using provided data only.`);
+      }
+    }
 
     if (responseData.error) {
       console.error('ChatGPT API Error:', responseData.error);
-      throw new Error(`ChatGPT API Error: ${responseData.error.message}`);
+      if (responseData.error.message.includes('rate limit')) {
+        throw new Error('Rate limit exceeded. Skipping auto-parse, using provided data only.');
+      } else {
+        throw new Error(`ChatGPT API Error: ${responseData.error.message}. Skipping auto-parse, using provided data only.`);
+      }
     }
 
     const extractedText = responseData.choices[0].message.content;
@@ -277,7 +379,21 @@ function autoParseMeetingData(transcript, providedData) {
 
 
 /**
- * Gets the ChatGPT API key from script properties
+ * Gets the Gemini API key from script properties
+ */
+function getGeminiApiKey() {
+  const properties = PropertiesService.getScriptProperties();
+  const apiKey = properties.getProperty('GEMINI_API_KEY');
+  
+  if (!apiKey) {
+    throw new Error('Gemini API key not configured. Please go to Settings to add your Gemini API key.');
+  }
+  
+  return apiKey;
+}
+
+/**
+ * Gets the ChatGPT API key from script properties (fallback)
  */
 function getChatGPTApiKey() {
   const properties = PropertiesService.getScriptProperties();
@@ -292,7 +408,21 @@ function getChatGPTApiKey() {
 
 
 /**
- * Sets the ChatGPT API key in script properties
+ * Sets the Gemini API key in script properties
+ */
+function setGeminiApiKey(apiKey) {
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error('Gemini API key cannot be empty');
+  }
+  
+  const properties = PropertiesService.getScriptProperties();
+  properties.setProperty('GEMINI_API_KEY', apiKey.trim());
+  
+  return { success: true, message: 'Gemini API key saved successfully!' };
+}
+
+/**
+ * Sets the ChatGPT API key in script properties (fallback)
  */
 function setChatGPTApiKey(apiKey) {
   if (!apiKey || !apiKey.trim()) {
@@ -310,8 +440,92 @@ function setChatGPTApiKey(apiKey) {
  */
 function checkApiKeyStatus() {
   const properties = PropertiesService.getScriptProperties();
-  const apiKey = properties.getProperty('CHATGPT_API_KEY');
-  return !!apiKey;
+  const geminiKey = properties.getProperty('GEMINI_API_KEY');
+  const chatgptKey = properties.getProperty('CHATGPT_API_KEY');
+  return {
+    gemini: !!geminiKey,
+    chatgpt: !!chatgptKey,
+    hasAny: !!(geminiKey || chatgptKey)
+  };
+}
+
+/**
+ * Debug function to test URL fetch permissions
+ */
+function debugUrlFetch() {
+  try {
+    console.log('Testing URL fetch permissions...');
+    
+    // Test with a simple request to OpenAI
+    const testUrl = 'https://api.openai.com/v1/models';
+    const options = {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer test-key'
+      }
+    };
+    
+    try {
+      const response = UrlFetchApp.fetch(testUrl, options);
+      console.log('URL fetch test successful');
+      return {
+        success: true,
+        message: 'URL fetch permissions are working correctly'
+      };
+    } catch (fetchError) {
+      console.error('URL fetch test failed:', fetchError);
+      
+      if (fetchError.toString().includes('not been whitelisted')) {
+        return {
+          success: false,
+          message: 'URL not whitelisted. Please check appsscript.json urlFetchWhitelist configuration and redeploy the add-on.'
+        };
+      } else if (fetchError.toString().includes('401')) {
+        return {
+          success: true,
+          message: 'URL fetch permissions are working (401 is expected with test key)'
+        };
+      } else {
+        return {
+          success: false,
+          message: `URL fetch test failed: ${fetchError.toString()}`
+        };
+      }
+    }
+    
+  } catch (error) {
+    return {
+      success: false,
+      message: `Debug error: ${error.toString()}`
+    };
+  }
+}
+
+/**
+ * Simple test function to verify URL fetch is working
+ */
+function testSimpleUrlFetch() {
+  try {
+    console.log('Testing simple URL fetch...');
+    
+    // Test with a simple public API first
+    const testUrl = 'https://httpbin.org/get';
+    const response = UrlFetchApp.fetch(testUrl);
+    const data = JSON.parse(response.getContentText());
+    
+    console.log('Simple URL fetch successful');
+    return {
+      success: true,
+      message: 'Basic URL fetch is working. The issue might be specific to OpenAI URLs.'
+    };
+    
+  } catch (error) {
+    console.error('Simple URL fetch failed:', error);
+    return {
+      success: false,
+      message: `Simple URL fetch failed: ${error.toString()}`
+    };
+  }
 }
 
 /**
@@ -441,7 +655,98 @@ function testChatGPTIntegration() {
 }
 
 /**
- * Tests the API key by making a simple request
+ * Tests the Gemini API key by making a simple request
+ */
+function testGeminiApiKey() {
+  try {
+    const apiKey = getGeminiApiKey();
+    
+    // First, validate the API key format
+    if (!apiKey || apiKey.length < 20) {
+      return {
+        success: false,
+        message: 'Invalid Gemini API key format. API key should be at least 20 characters long'
+      };
+    }
+    
+    // Make a simple test request
+    const payload = {
+      contents: [
+        {
+          parts: [
+            {
+              text: "Hello, this is a test."
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 10,
+        topP: 0.8,
+        topK: 10
+      }
+    };
+    
+    const url = `${CONFIG.GEMINI_API_URL}?key=${apiKey}`;
+    const options = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+    
+    const response = UrlFetchApp.fetch(url, options);
+    const responseData = JSON.parse(response.getContentText());
+    
+    if (response.getResponseCode() !== 200) {
+      let errorMessage = responseData.error?.message || 'Unknown error';
+      
+      // Provide more helpful error messages
+      if (errorMessage.includes('API key not valid')) {
+        errorMessage = 'Gemini API key is invalid. Please check your API key in Apps Script project settings.';
+      } else if (errorMessage.includes('quota')) {
+        errorMessage = 'Gemini API quota exceeded. Please check your Google Cloud account billing.';
+      } else if (errorMessage.includes('permission')) {
+        errorMessage = 'Gemini API key lacks required permissions.';
+      }
+      
+      return {
+        success: false,
+        message: `Gemini API key test failed: ${errorMessage}`
+      };
+    }
+    
+    return {
+      success: true,
+      message: `Gemini API key is working correctly! Response: ${responseData.candidates[0].content.parts[0].text}`
+    };
+    
+  } catch (error) {
+    let errorMessage = error.toString();
+    
+    // Provide more helpful error messages
+    if (errorMessage.includes('API key not configured')) {
+      errorMessage = 'Gemini API key not found. Please add GEMINI_API_KEY to Apps Script project properties.';
+    } else if (errorMessage.includes('401')) {
+      errorMessage = 'Unauthorized. Please check your Gemini API key.';
+    } else if (errorMessage.includes('403')) {
+      errorMessage = 'Forbidden. Please check Gemini API key permissions.';
+    } else if (errorMessage.includes('429')) {
+      errorMessage = 'Rate limit exceeded. Please try again later.';
+    }
+    
+    return {
+      success: false,
+      message: `Gemini API key test failed: ${errorMessage}`
+    };
+  }
+}
+
+/**
+ * Tests the API key by making a simple request (ChatGPT fallback)
  */
 function testApiKey() {
   try {
@@ -525,7 +830,72 @@ function testApiKey() {
 
 
 /**
- * Calls ChatGPT API to extract structured content
+ * Calls Gemini API to extract structured content
+ */
+function callGeminiAPI(transcript) {
+  const apiKey = getGeminiApiKey();
+  const prompt = createPrompt(transcript);
+  
+  const payload = {
+    contents: [
+      {
+        parts: [
+          {
+            text: prompt
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 2048,
+      topP: 0.8,
+      topK: 10
+    }
+  };
+  
+  const url = `${CONFIG.GEMINI_API_URL}?key=${apiKey}`;
+  const options = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+  
+  const response = UrlFetchApp.fetch(url, options);
+  const responseData = JSON.parse(response.getContentText());
+  
+  // Check for HTTP errors
+  if (response.getResponseCode() !== 200) {
+    if (response.getResponseCode() === 429) {
+      throw new Error('Gemini API rate limit exceeded. Please wait a few minutes and try again.');
+    } else if (response.getResponseCode() === 401) {
+      throw new Error('Gemini API key is invalid. Please check your API key.');
+    } else if (response.getResponseCode() === 403) {
+      throw new Error('Gemini API access forbidden. Please check your account billing status.');
+    } else {
+      throw new Error(`Gemini API HTTP Error ${response.getResponseCode()}: ${responseData.error?.message || 'Unknown error'}`);
+    }
+  }
+  
+  if (responseData.error) {
+    if (responseData.error.message.includes('rate limit')) {
+      throw new Error('Gemini API rate limit exceeded. Please wait a few minutes and try again.');
+    } else if (responseData.error.message.includes('quota')) {
+      throw new Error('Gemini API quota exceeded. Please check your Google Cloud account billing.');
+    } else {
+      throw new Error(`Gemini API Error: ${responseData.error.message}`);
+    }
+  }
+  
+  const content = responseData.candidates[0].content.parts[0].text;
+  return parseChatGPTResponse(content); // Reuse the same parser
+}
+
+/**
+ * Calls ChatGPT API to extract structured content (fallback)
  */
 function callChatGPTAPI(transcript) {
   const apiKey = getChatGPTApiKey();
@@ -553,14 +923,34 @@ function callChatGPTAPI(transcript) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`
     },
-    payload: JSON.stringify(payload)
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true  // This helps with better error handling
   };
   
   const response = UrlFetchApp.fetch(CONFIG.CHATGPT_API_URL, options);
   const responseData = JSON.parse(response.getContentText());
   
+  // Check for HTTP errors
+  if (response.getResponseCode() !== 200) {
+    if (response.getResponseCode() === 429) {
+      throw new Error('ChatGPT API rate limit exceeded. Please wait a few minutes and try again.');
+    } else if (response.getResponseCode() === 401) {
+      throw new Error('ChatGPT API key is invalid. Please check your API key.');
+    } else if (response.getResponseCode() === 403) {
+      throw new Error('ChatGPT API access forbidden. Please check your account billing status.');
+    } else {
+      throw new Error(`ChatGPT API HTTP Error ${response.getResponseCode()}: ${responseData.error?.message || 'Unknown error'}`);
+    }
+  }
+  
   if (responseData.error) {
-    throw new Error(`ChatGPT API Error: ${responseData.error.message}`);
+    if (responseData.error.message.includes('rate limit')) {
+      throw new Error('ChatGPT API rate limit exceeded. Please wait a few minutes and try again.');
+    } else if (responseData.error.message.includes('quota')) {
+      throw new Error('ChatGPT API quota exceeded. Please check your OpenAI account billing.');
+    } else {
+      throw new Error(`ChatGPT API Error: ${responseData.error.message}`);
+    }
   }
   
   const content = responseData.choices[0].message.content;
@@ -568,7 +958,7 @@ function callChatGPTAPI(transcript) {
 }
 
 /**
- * Creates the prompt for Gemini
+ * Creates the prompt for ChatGPT
  */
 function createPrompt(transcript) {
   return `You are a professional meeting note-taker. Convert the following meeting transcript into structured meeting notes following this exact format:
