@@ -147,9 +147,12 @@
     </div>
     
     <div class="info-box">
-      <h3>🔑 API Key Configuration</h3>
-      <p>This add-on uses Google's Gemini AI to process meeting transcripts. Your API key is configured in the Apps Script project properties.</p>
-      <p><strong>To update your API key:</strong> Go to the Apps Script project settings and modify the <code>GEMINI_API_KEY</code> property.</p>
+      <h3>🔑 ChatGPT Configuration</h3>
+      <p>This add-on uses OpenAI's ChatGPT to process meeting transcripts and generate structured notes.</p>
+      
+      <p><strong>To configure your ChatGPT API key:</strong> Go to the Apps Script project settings and add <code>CHATGPT_API_KEY</code> property.</p>
+      
+      <p><strong>Get your API key:</strong> Visit <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI API Keys</a> to create a new API key.</p>
     </div>
     
     <div class="error" id="error-message"></div>
@@ -161,6 +164,8 @@
     
     <div class="button-group">
       <button type="button" id="test-btn" class="btn btn-secondary">🧪 Test API Key</button>
+      <button type="button" id="debug-btn" class="btn btn-secondary">🔍 Debug API</button>
+      <button type="button" id="test-processing-btn" class="btn btn-secondary">⚡ Test Processing</button>
       <button type="button" id="refresh-btn" class="btn btn-primary">🔄 Refresh Status</button>
     </div>
   </div>
@@ -219,6 +224,60 @@
         .testApiKey();
     }
     
+    function debugApiKey() {
+      const debugBtn = document.getElementById('debug-btn');
+      debugBtn.disabled = true;
+      debugBtn.textContent = 'Debugging...';
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          debugBtn.disabled = false;
+          debugBtn.textContent = '🔍 Debug API';
+          
+          if (result.success) {
+            showSuccess(result.message);
+            updateStatus('success', '✅ Working');
+          } else {
+            showError(result.message);
+            updateStatus('error', '❌ ' + result.message);
+          }
+        })
+        .withFailureHandler(function(error) {
+          debugBtn.disabled = false;
+          debugBtn.textContent = '🔍 Debug API';
+          showError('Debug failed: ' + error);
+          updateStatus('error', '❌ Debug failed');
+        })
+        .debugApiKey();
+    }
+    
+    function testTranscriptProcessing() {
+      const testBtn = document.getElementById('test-processing-btn');
+      testBtn.disabled = true;
+      testBtn.textContent = 'Testing...';
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          testBtn.disabled = false;
+          testBtn.textContent = '⚡ Test Processing';
+          
+          if (result.success) {
+            showSuccess(result.message);
+            updateStatus('success', '✅ Processing works');
+          } else {
+            showError(result.message);
+            updateStatus('error', '❌ Processing failed');
+          }
+        })
+        .withFailureHandler(function(error) {
+          testBtn.disabled = false;
+          testBtn.textContent = '⚡ Test Processing';
+          showError('Test failed: ' + error);
+          updateStatus('error', '❌ Test failed');
+        })
+        .testTranscriptProcessing();
+    }
+    
     function refreshStatus() {
       const refreshBtn = document.getElementById('refresh-btn');
       refreshBtn.disabled = true;
@@ -253,6 +312,8 @@
     
     // Add event listeners
     document.getElementById('test-btn').addEventListener('click', testApiKey);
+    document.getElementById('debug-btn').addEventListener('click', debugApiKey);
+    document.getElementById('test-processing-btn').addEventListener('click', testTranscriptProcessing);
     document.getElementById('refresh-btn').addEventListener('click', refreshStatus);
   </script>
 </body>

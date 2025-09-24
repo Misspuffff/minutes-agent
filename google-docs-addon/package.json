@@ -1,23 +1,21 @@
 {
   "name": "meeting-notes-agent",
   "version": "1.0.0",
-  "description": "Google Docs add-on that converts meeting transcripts into structured meeting notes",
+  "description": "Google Docs Add-on for converting meeting transcripts to structured notes using ChatGPT",
   "main": "Code.gs",
   "scripts": {
-    "deploy": "./deploy.sh",
-    "push": "clasp push",
+    "deploy": "clasp push",
     "pull": "clasp pull",
-    "status": "clasp status",
-    "login": "clasp login",
-    "logout": "clasp logout"
+    "deploy-addon": "clasp deploy --deploymentId $DEPLOYMENT_ID",
+    "create-deployment": "clasp deploy --description 'Automated deployment from GitHub'"
   },
   "keywords": [
     "google-apps-script",
     "google-docs",
+    "add-on",
     "meeting-notes",
-    "transcript",
-    "ai",
-    "gemini"
+    "chatgpt",
+    "ai"
   ],
   "author": "Your Name",
   "license": "MIT",
@@ -26,10 +24,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/meeting-notes-agent.git"
-  },
-  "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/meeting-notes-agent/issues"
-  },
-  "homepage": "https://github.com/YOUR_USERNAME/meeting-notes-agent#readme"
+    "url": "https://github.com/yourusername/minutes-agent.git"
+  }
 }
